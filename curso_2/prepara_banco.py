@@ -1,29 +1,30 @@
 import mysql.connector
 from mysql.connector import errorcode
+import time
 from flask_bcrypt import generate_password_hash
 
-print("Conectando...")
-try:
-      conn = mysql.connector.connect(
-            host='127.0.0.1',
-            user='root',
-            password='admin'
-      )
-except mysql.connector.Error as err:
-      if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-            print('Existe algo errado no nome de usuário ou senha')
-      else:
-            print(err)
+def wait_for_db():
+    while True:
+        try:
+            conn = mysql.connector.connect(
+                host='db',
+                user='root',
+                password='admin'
+            )
+            print("Conectado ao banco de dados com sucesso!")
+            return conn
+        except mysql.connector.Error as err:
+            print(f"Não conseguiu conectar ao MySQL: {err}, tentando novamente em 5 segundos...")
+            time.sleep(5)
 
+print("Conectando...")
+conn = wait_for_db()
 cursor = conn.cursor()
 
 cursor.execute("DROP DATABASE IF EXISTS `jogoteca`;")
-
 cursor.execute("CREATE DATABASE `jogoteca`;")
-
 cursor.execute("USE `jogoteca`;")
 
-# criando tabelas
 TABLES = {}
 TABLES['Jogos'] = ('''
       CREATE TABLE `jogos` (
@@ -45,18 +46,15 @@ TABLES['Usuarios'] = ('''
 for tabela_nome in TABLES:
       tabela_sql = TABLES[tabela_nome]
       try:
-            print('Criando tabela {}:'.format(tabela_nome), end=' ')
+            print(f'Criando tabela {tabela_nome}...', end=' ')
             cursor.execute(tabela_sql)
+            print("OK")
       except mysql.connector.Error as err:
             if err.errno == errorcode.ER_TABLE_EXISTS_ERROR:
                   print('Já existe')
             else:
                   print(err.msg)
-      else:
-            print('OK')
 
-
-# inserindo usuarios
 usuario_sql = 'INSERT INTO usuarios (nome, nickname, senha) VALUES (%s, %s, %s)'
 usuarios = [
       ("Bruno Divino", "BD", generate_password_hash("alohomora").decode('utf-8')),
@@ -65,12 +63,11 @@ usuarios = [
 ]
 cursor.executemany(usuario_sql, usuarios)
 
-cursor.execute('select * from jogoteca.usuarios')
+cursor.execute('SELECT * FROM jogoteca.usuarios')
 print(' -------------  Usuários:  -------------')
 for user in cursor.fetchall():
     print(user[1])
 
-# inserindo jogos
 jogos_sql = 'INSERT INTO jogos (nome, categoria, console) VALUES (%s, %s, %s)'
 jogos = [
       ('Tetris', 'Puzzle', 'Atari'),
@@ -82,12 +79,11 @@ jogos = [
 ]
 cursor.executemany(jogos_sql, jogos)
 
-cursor.execute('select * from jogoteca.jogos')
+cursor.execute('SELECT * FROM jogoteca.jogos')
 print(' -------------  Jogos:  -------------')
 for jogo in cursor.fetchall():
     print(jogo[1])
 
-# commitando se não nada tem efeito
 conn.commit()
 
 cursor.close()
