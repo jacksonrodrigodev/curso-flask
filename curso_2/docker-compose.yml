@@ -1,0 +1,42 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: jogoteca_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+    ports:
+      - "3306:3306"
+    volumes:
+      - jogoteca_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-padmin"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  db_init:
+    build:
+      context: .
+      dockerfile: Dockerfile-db-init
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build: .
+    container_name: jogoteca_app
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+      - db_init
+    environment:
+      FLASK_ENV: development
+    volumes:
+      - .:/app
+    command: python jogoteca.py
+
+volumes:
+  jogoteca_db_data:
